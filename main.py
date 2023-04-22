@@ -279,7 +279,7 @@ class Text:
     @staticmethod
     def font() -> pygame.font.Font:
         if not Text._font:
-            Text._font = pygame.font.Font(pygame.font.get_default_font(), 15)
+            Text._font = pygame.font.Font(pygame.font.get_default_font(), 16)
         return Text._font
 
     @staticmethod
@@ -435,15 +435,21 @@ class GameScene(State):
         captured_cards: set["GameScene.TaskCard"]
         region: pygame.Rect
         dragging: "GameScene.TaskCard"
+        resource_type: ResourceType
 
         def __init__(
-            self, parent: "GameScene", coords: tuple[int, int], size: tuple[int, int]
+            self,
+            parent: "GameScene",
+            coords: tuple[int, int],
+            size: tuple[int, int],
+            resource: ResourceType,
         ) -> None:
             self.time_board = []
             self.parent = parent
             self.region = pygame.Rect(
                 coords[0] - size[0] // 2, coords[1] - size[1] // 2, size[0], size[1]
             )
+            self.resource_type = resource
             self.captured_cards = set()
             self.parent.register_drop(self.drop_object)
             self.parent.register_click(self.grab_line)
@@ -451,7 +457,7 @@ class GameScene(State):
         def grab_line(self, pos: tuple[int, int]) -> "GameScene.TaskCard | None":
             if not self.region.collidepoint(pos):
                 return None
-            time = int((pos[1] - self.region.top) / (self.region.height / 15))
+            time = int((pos[1] - self.region.top) / (self.region.height / 20))
             item = next(
                 (
                     t
@@ -476,8 +482,11 @@ class GameScene(State):
 
             task_card = self.parent.currently_selected
 
+            if task_card.task.type != self.resource_type:
+                return
+
             task = task_card.task
-            time = int((pos[1] - self.region.top) / (self.region.height / 15))
+            time = int((pos[1] - self.region.top) / (self.region.height / 20))
 
             i = 0
             while i < len(self.time_board):
@@ -503,14 +512,16 @@ class GameScene(State):
             buffer.fill(pygame.Color(177, 209, 252))
             pygame.draw.rect(buffer, "Gray", buffer.get_rect(), 0, 5)
             pygame.draw.line(buffer, "Black", (width // 2, 0), (width // 2, height), 2)
-            for i in range(1, 15):
-                level = int((height / 15) * i)
+            for i in range(1, 20):
+                level = int((height / 20) * i)
                 pygame.draw.line(buffer, "Black", (0, level), (width, level))
             for task in self.time_board:
-                lo = task.scheduled * (height / 15)
-                y_size = task.duration * (height / 15)
+                lo = task.scheduled * (height / 20)
+                y_size = task.duration * (height / 20)
                 rect = pygame.Rect((0, lo), (width, y_size))
                 pygame.draw.rect(buffer, task.type.value, rect, 0, 5)
+                dark = pygame.Color(task.type.value).lerp(pygame.Color("Black"), 0.2)
+                pygame.draw.rect(buffer, dark, rect, 2, 5)
                 text = f"{task.id} {' '.join(r.value for r in task.registers)}" + (
                     f" <- {' '.join(t.id for t in task.depends)}"
                     if task.depends
@@ -545,8 +556,12 @@ class GameScene(State):
 
         self.generate_cards()
         self.resources = {
-            t[0]: GameScene.FretBoard(self, t[1], (200, 500))
-            for t in [("RED", (320, 450)), ("BLUE", (540, 450)), ("GREEN", (760, 450))]
+            t[0].value: GameScene.FretBoard(self, t[1], (200, 500), t[0])
+            for t in [
+                (ResourceType.Red, (320, 450)),
+                (ResourceType.Green, (540, 450)),
+                (ResourceType.Blue, (760, 450)),
+            ]
         }
 
     def register_click(
@@ -627,7 +642,7 @@ class GameScene(State):
             Text(self.surface, line, (10, 400 + 10 * i), centered=False)
         Button(self.surface, pygame.Rect(990, 10, 80, 20), "Reset", self.reset_card_pos)
         Button(
-            self.surface, pygame.Rect(990, 700, 80, 40), "Submit", self.submit_solution
+            self.surface, pygame.Rect(990, 660, 80, 40), "Submit", self.submit_solution
         )
         self.mouse_previous = mouse
 
