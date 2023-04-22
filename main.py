@@ -113,7 +113,7 @@ class BadScheduleException(Exception):
 
 def accept_task(
     channel: str,
-    task_lists: dict[str, list[Task]],
+    solution: dict[str, list[Task]],
     time: int,
     running_tasks: dict[str, tuple[int, Task] | None],
     completed: set[Task],
@@ -121,9 +121,13 @@ def accept_task(
     """
     This function throws BadScheduleException, which should be caught by the caller
     """
-    if len(task_lists[channel]) == 0:
+    if len(solution[channel]) == 0:
         return None
-    task = task_lists[channel][0]
+    task = solution[channel][0]
+    if task.scheduled < time:
+        raise BadScheduleException(
+            f"Schedule not in order!\n{task.id} scheduled at {task.scheduled} found at time {time}"
+        )
     if not task.scheduled == time:
         return
     # Check for time conflicts
@@ -157,13 +161,14 @@ def accept_task(
         )
 
     running_tasks[channel] = (time + task.duration, task)
-    task_lists[channel].pop(0)
+    solution[channel].pop(0)
 
 
 def simulate_cpu(solution: dict[str, list[Task]], tasklist: list[Task]) -> None:
     """
     This function throws BadScheduleException, which should be caught by the caller
     """
+    solution = {name: [x for x in l] for (name, l) in solution.items()}
     completed: set[Task] = set()
     time: int = 0
     running_tasks: dict[str, tuple[int, Task] | None] = {
@@ -176,7 +181,7 @@ def simulate_cpu(solution: dict[str, list[Task]], tasklist: list[Task]) -> None:
             f"One or more tasks were not scheduled!\n {unscheduled}"
         )
 
-    while any(len(l) > 0 for l in solution.values()):
+    while any(len(l) > 0 for l in solution.values()) and time < 30:
         # clear completed tasks
         for k, v in running_tasks.items():
             if v and v[0] <= time:
@@ -187,6 +192,8 @@ def simulate_cpu(solution: dict[str, list[Task]], tasklist: list[Task]) -> None:
         for channel in resource_ids:
             accept_task(channel, solution, time, running_tasks, completed)
         time += 1
+    if time >= 30:
+        raise Exception("The simulator has entered an inifinite loop")
 
 
 def start_terminal() -> None:
@@ -491,15 +498,13 @@ class GameScene(State):
             i = 0
             while i < len(self.time_board):
                 o_task = self.time_board[i]
-                i += 1
-                if time >= o_task.scheduled + o_task.duration:
-                    continue
                 if time + task.duration <= o_task.scheduled:
                     break
+                if time >= o_task.scheduled + o_task.duration:
+                    i += 1
+                    continue
                 else:
                     return None
-            if len(self.time_board) == 0:
-                i = 0
 
             task_card.visible = False
             self.captured_cards.add(task_card)
@@ -608,10 +613,9 @@ class GameScene(State):
         mouse_pos = pygame.mouse.get_pos()
 
         if self.completed:
-            Text(self.surface, "Congrats, you compelted the puzzle!", (540, 600))
-            rect = pygame.Rect(0, 0, 1, 1)
+            Text(self.surface, "Congrats, you completed the puzzle!", (540, 600))
+            rect = pygame.Rect(0, 0, 200, 40)
             rect.center = (540, 400)
-            rect.size = (200, 40)
             Button(self.surface, rect, "Play Again", self.state_menu)
             return
 
