@@ -148,7 +148,7 @@ def accept_task(
     )
     if register_conflict:
         raise BadScheduleException(
-            "Cannot schedule function, register is already in use\n{task.id} and {register_conflict.id} shared registers {task.registers & register_conflict.registers} at {time}"
+            f"Cannot schedule function, register is already in use\n{task.id} and {register_conflict.id} shared registers {task.registers & register_conflict.registers} at {time}"
         )
 
     # check for unmet dependencies
