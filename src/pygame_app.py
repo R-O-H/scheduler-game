@@ -280,7 +280,6 @@ class GameScene(State):
     cards: list[TaskCard]
     resources: dict[str, FretBoard]
     currently_selected: object | None
-    last_selected: object
     errs: list[str]
 
     mouse_previous: tuple[bool, bool, bool]
@@ -304,7 +303,6 @@ class GameScene(State):
 
         self.cards = []
         self.currently_selected = None
-        self.last_selected = ()
         self.errs = []
 
         self.mouse_previous = (False, False, False)
@@ -389,7 +387,6 @@ class GameScene(State):
             # user is dropping
             for observer in self.drop_observers:
                 observer(mouse_pos)
-            self.last_selected = self.currently_selected
             self.currently_selected = None
 
         for color, board in self.resources.items():

@@ -18,45 +18,104 @@ class Register(Enum):
     D = "D"
     E = "E"
     F = "F"
-    G = "G"
-    H = "H"
 
 
 class Task:
     id: str
     type: ResourceType
-    depends: list["Task"]
+    depends: set["Task"]
     duration: int
     registers: set[Register]
     scheduled: int
 
     def __init__(
-        self, id: str, type: ResourceType, duration: int, registers: set[Register]
+        self,
+        id: str,
+        type: ResourceType,
+        duration: int,
+        depends: set["Task"],
+        registers: set[Register],
     ) -> None:
         self.id = id
         self.type = type
         self.duration = duration
-        self.depends = []
+        self.depends = depends
         self.registers = registers
         self.scheduled = -1
 
 
-def generate_tasks(tasks: int) -> list[Task]:
+def task_depth(task: Task) -> int:
+    if len(task.depends) == 0:
+        return 1
+    return 1 + max(task_depth(o) for o in task.depends)
+
+
+def generate_tasks(length: int) -> list[Task]:
     lists: list[Task] = []
 
-    for i in range(tasks):
-        resource: ResourceType = rand.choice(list(ResourceType))
-        duration: int = rand.randint(1, 5)
-        registers = {rand.choice(list(Register))}
-        lists.append(Task(str(i + 1), resource, duration, registers))
+    # Generate blank tasks
+    for i in range(1, length + 1):
+        lists.append(Task(str(i), ResourceType.Red, 1, set(), set()))
 
     rand.shuffle(lists)
 
-    for i in range(1, len(lists)):
-        if rand.random() > 0.66:
+    # Populate them with tasks
+    resource_weights = [rand.randint(4, 16) for _ in range(3)]
+    sum_weights = sum(resource_weights)
+    resource_ratio = [weight / sum_weights for weight in resource_weights]
+    resource_tasks = [0, 0, 0]
+    for _ in range(length):
+        distance = [
+            target - n / length for (n, target) in zip(resource_tasks, resource_ratio)
+        ]
+        i = max(enumerate(distance), key=lambda t: t[1])[0]
+        resource_tasks[i] += 1
+
+    for resource, task in zip(
+        (
+            final_type
+            for (num, resc) in zip(resource_tasks, list(ResourceType))
+            for final_type in (resc for _ in range(num))
+        ),
+        lists,
+    ):
+        task.type = resource
+
+    rand.shuffle(lists)
+
+    # add durations
+    for task in lists:
+        task.duration = rand.randrange(1, 5)
+
+    # add registers
+    for task in lists:
+        register_set = set()
+        register_set.add(rand.choice(list(Register)))
+        # second register
+        if rand.random() < 0.25:
+            # Slightly less than 25% (Due to chance of adding the same register twice)
+            register_set.add(rand.choice(list(Register)))
+        task.registers = register_set
+
+    # add dependencies
+
+    for i in range(1, length):
+        task = lists[i]
+        # first dependency
+        if rand.random() < 0.33:
             continue
-        link = rand.choice(lists[:i])
-        lists[i].depends.append(link)
+
+        depend = rand.choice(lists[:i])
+        if task_depth(depend) < 4:
+            task.depends.add(depend)
+
+        # second dependency
+        if rand.random() < 0.66:
+            continue
+
+        depend = rand.choice(lists[:i])
+        if task_depth(depend) < 4:
+            task.depends.add(depend)
 
     rand.shuffle(lists)
 
@@ -90,7 +149,8 @@ def accept_task(
     running = running_tasks[channel]
     if running:
         raise BadScheduleException(
-            "Task collision! cannot schedule {task.id} at {time}\n{running[1].id} is already scheduled at {running[0]}"
+            f"""Task collision! cannot schedule {task.id} at {time}
+{running[1].id} is already scheduled at {running[0]}"""
         )
 
     # check for register conflicts
@@ -103,8 +163,12 @@ def accept_task(
         None,
     )
     if register_conflict:
+        shared_regs = " ".join(
+            r.value for r in task.registers & register_conflict.registers
+        )
         raise BadScheduleException(
-            f"Cannot schedule function, register is already in use\n{task.id} and {register_conflict.id} shared registers {task.registers & register_conflict.registers} at {time}"
+            f"""Cannot schedule function, register is already in use
+{task.id} and {register_conflict.id} shared registers {shared_regs} at {time}"""
         )
 
     # check for unmet dependencies
@@ -113,7 +177,8 @@ def accept_task(
     )
     if bad_ordering:
         raise BadScheduleException(
-            f"Dependency not completed, cannot schedule task\n{bad_ordering.id} has not completed at {time}"
+            f"""Dependency not completed, cannot schedule task
+{bad_ordering.id} has not completed at {time}"""
         )
 
     running_tasks[channel] = (time + task.duration, task)
