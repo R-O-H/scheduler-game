@@ -146,7 +146,7 @@ class TaskCard:
             f"dep {' '.join([t.id for t in task.depends])}" if task.depends else "",
         ]
         self.line_height = Text.font().get_linesize()
-        self.region = pygame.Rect(coords, (100, 5 * self.line_height))
+        self.region = pygame.Rect(coords, (85, 5 * self.line_height))
         self.parent = parent
         self.visible = True
 
@@ -252,7 +252,9 @@ class FretBoard:
         (width, height) = self.region.size
         buffer.fill(pygame.Color(177, 209, 252))
         pygame.draw.rect(buffer, "Gray", buffer.get_rect(), 0, 5)
-        pygame.draw.line(buffer, "Black", (width // 2, 0), (width // 2, height), 2)
+        pygame.draw.line(
+            buffer, self.resource_type.value, (width // 2, 0), (width // 2, height), 2
+        )
         for i in range(1, 20):
             level = int((height / 20) * i)
             pygame.draw.line(buffer, "Black", (0, level), (width, level))
@@ -394,7 +396,7 @@ class GameScene(State):
         for card in self.cards:
             card.draw(self.surface)
         for i, line in enumerate(self.errs):
-            Text(self.surface, line, (10, 400 + 10 * i), centered=False)
+            Text(self.surface, line, (10, 120 + 16 * i), centered=False)
         Button(self.surface, pygame.Rect(990, 10, 80, 20), "Reset", self.reset_card_pos)
         Button(
             self.surface, pygame.Rect(990, 660, 80, 40), "Submit", self.submit_solution
